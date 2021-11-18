@@ -29,13 +29,12 @@ library(tidyverse)
 options(digits = 8)
 
 knitr::opts_chunk$set(
-  echo = TRUE,
   cache = FALSE,
+  dpi = 300,
+  echo = TRUE,
   fig.align = "center",
   fig.width = 9,
-  fig.height = 6,
-  cache = TRUE,
-  dpi = 300
+  fig.height = 6
 )
 
 theme_set(theme_minimal())
@@ -106,16 +105,16 @@ Sea $\displaystyle \theta = \int_0^{\pi/3} \sin(t)dt$, usaremos Monte Carlo para
 
 ```{r}
 set.seed(181121)
-
-n <- 100000
+n <- 10000
 a <- 0
 b <- pi / 3
 
 sim.u     <- runif(n, a, b)
-sim.sin   <- sin(sim.u)
-theta.sin <- cumsum(sim.sin) / (1:n)
-theta.1   <- sim.sin[which.min(abs(sim.sin - 0.5))]
-sd.1      <- sd(sim.sin) / sqrt(n)
+sim.raw   <- sin(sim.u)
+theta.raw <- cumsum(sim.raw) / (1:n)
+theta.raw <- (b - a) * theta.raw
+theta.1   <- tail(theta.raw, 1)
+var.1     <- var(sim.raw)
 ```
 
 Nuestro estimado es: $\hat{\theta}_1 = `r theta.1`$.
@@ -126,44 +125,47 @@ Nuestro estimado es: $\hat{\theta}_1 = `r theta.1`$.
 sim.v     <- a + (b - sim.u)
 sim.ant   <- (sin(sim.u) + sin(sim.v)) / 2
 theta.ant <- cumsum(sim.ant) / (1:n)
-theta.2   <- sim.ant[which.min(abs(sim.ant - 0.5))]
-sd.2      <- sd(sim.ant) / sqrt(n)
+theta.ant <- (b - a) * theta.ant
+theta.2   <- tail(theta.ant, 1)
+var.2     <- var(sim.ant)
 ```
 
-Nuestro estimado es: $\hat{\theta}_2 = `r theta.2`$. Asimismo, con variables antitéticas, la varianza se reduce en un $`r abs(sd.2 / sd.1 - 1) * 100`\%$.
+Nuestro estimado es: $\hat{\theta}_2 = `r theta.2`$. Asimismo, con variables antitéticas, la varianza se reduce en un $`r abs(var.2 / var.1 - 1) * 100`\%$.
 
 ## Variables de control
 
 Sabemos $\sin(t) = \cos(t - \pi / 2)$. Definamos $y = t - \pi / 2$ como variable de control.
 
 ```{r}
-set.seed(181121)
-k <- 1000
+k <- 100
 
 # Piloto
+set.seed(181121)
 u <- runif(k, a, b)
-x <- u
+x <- pi / 2 - u
 y <- cos(x)
 alpha <- -lm(y ~ x)$coeff[2]
 
 # Simulación
+set.seed(181121)
 u <- runif(n, a, b)
-x <- u
+x <- pi / 2 - u
 y <- cos(x)
 
-sim.cv   <- x + alpha * (y - mean(y))
+sim.cv   <- y + alpha * (x - mean(x))
 theta.cv <- cumsum(sim.cv) / (1:n)
-theta.3  <- sim.cv[which.min(abs(sim.cv - 0.5))]
-sd.3     <- sd(sim.cv) / sqrt(n)
+theta.cv <- (b - a) * theta.cv
+theta.3  <- tail(theta.cv, 1)
+var.3    <- var(sim.cv)
 ```
 
-Nuestro estimado es: $\hat{\theta}_3 = `r theta.3`$. De tal forma que, con nuestra variable de control, la varianza se reduce en un $`r abs(sd.3 / sd.1 - 1) * 100`\%$.
+Nuestro estimado es: $\hat{\theta}_3 = `r theta.3`$. De tal forma que, con nuestra variable de control, la varianza se reduce en un $`r abs(var.3 / var.1 - 1) * 100`\%$.
 
 Gráficamente,
 
 ```{r, echo=FALSE, warning=FALSE}
 df <- data.frame(n = 1:n,
-                 raw = theta.sin,
+                 raw = theta.raw,
                  ant = theta.ant,
                  cv = theta.cv)
 
@@ -177,8 +179,7 @@ ggplot(df) +
   geom_line(aes(x = n, y = raw, colour = "Monte Carlo crudo")) +
   geom_line(aes(x = n, y = ant, colour = "Variables antitéticas")) +
   geom_line(aes(x = n, y = cv, colour = "Variables de control")) +
-  geom_hline(yintercept = 0.5) +
-  ylim(0.35, 0.55) +
+  ylim(0.475, 0.525) +
   scale_colour_manual(name = NULL, values = colours) +
   labs(title = NULL,
        x = "n",
