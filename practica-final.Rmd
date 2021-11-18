@@ -10,7 +10,7 @@ output:
         self_contained: true
         theme: flatly
         highlight: pygments
-        code_folding: show
+        # code_folding: show
         toc: yes
         toc_depth: 4
         toc_float: yes
@@ -26,11 +26,11 @@ monofont: Fira Code
 ```{r setup, include=FALSE}
 library(rmarkdown)
 library(tidyverse)
-options(digits = 2)
+options(digits = 8)
 
 knitr::opts_chunk$set(
   echo = TRUE,
-  cache = TRUE,
+  cache = FALSE,
   fig.align = "center",
   fig.width = 9,
   fig.height = 6,
@@ -38,15 +38,7 @@ knitr::opts_chunk$set(
   dpi = 300
 )
 
-theme_set(theme_linedraw())
-
-sin_lineas <- theme(panel.grid.major = element_blank(),
-                    panel.grid.minor = element_blank())
-
-sin_leyenda <- theme(legend.position = "none")
-
-sin_ejes <- theme(axis.ticks = element_blank(),
-                  axis.text = element_blank())
+theme_set(theme_minimal())
 ```
 
 # Problema 1
@@ -108,26 +100,144 @@ Supongamos que no podemos muestrear $\pi$ directamente y, en su lugar, usamos Me
 
 # Problema 3
 
-Sea $\displaystyle \theta = \int_0^{\pi/3} \sin(t)dt$, usaremos Monte Carlo crudo para calcular un estimador $\hat{\theta}$.
+Sea $\displaystyle \theta = \int_0^{\pi/3} \sin(t)dt$, usaremos Monte Carlo para calcular un estimador $\hat{\theta}$.
+
+## Monte Carlo crudo
+
+```{r}
+set.seed(181121)
+
+n <- 100000
+a <- 0
+b <- pi / 3
+
+sim.u     <- runif(n, a, b)
+sim.sin   <- sin(sim.u)
+theta.sin <- cumsum(sim.sin) / (1:n)
+theta.1   <- sim.sin[which.min(abs(sim.sin - 0.5))]
+sd.1      <- sd(sim.sin) / sqrt(n)
+```
+
+Nuestro estimado es: $\hat{\theta}_1 = `r theta.1`$.
+
+## Variables antitéticas
+
+```{r}
+sim.v     <- a + (b - sim.u)
+sim.ant   <- (sin(sim.u) + sin(sim.v)) / 2
+theta.ant <- cumsum(sim.ant) / (1:n)
+theta.2   <- sim.ant[which.min(abs(sim.ant - 0.5))]
+sd.2      <- sd(sim.ant) / sqrt(n)
+```
+
+Nuestro estimado es: $\hat{\theta}_2 = `r theta.2`$. Asimismo, con variables antitéticas, la varianza se reduce en un $`r abs(sd.2 / sd.1 - 1) * 100`\%$.
 
 ## Variables de control
 
-## Variables antitéticas
+Sabemos $\sin(t) = \cos(t - \pi / 2)$. Definamos $y = t - \pi / 2$ como variable de control.
+
+```{r}
+set.seed(181121)
+k <- 1000
+
+# Piloto
+u <- runif(k, a, b)
+x <- u
+y <- cos(x)
+alpha <- -lm(y ~ x)$coeff[2]
+
+# Simulación
+u <- runif(n, a, b)
+x <- u
+y <- cos(x)
+
+sim.cv   <- x + alpha * (y - mean(y))
+theta.cv <- cumsum(sim.cv) / (1:n)
+theta.3  <- sim.cv[which.min(abs(sim.cv - 0.5))]
+sd.3     <- sd(sim.cv) / sqrt(n)
+```
+
+Nuestro estimado es: $\hat{\theta}_3 = `r theta.3`$. De tal forma que, con nuestra variable de control, la varianza se reduce en un $`r abs(sd.3 / sd.1 - 1) * 100`\%$.
+
+Gráficamente,
+
+```{r, echo=FALSE, warning=FALSE}
+df <- data.frame(n = 1:n,
+                 raw = theta.sin,
+                 ant = theta.ant,
+                 cv = theta.cv)
+
+colours <- c(
+  "Monte Carlo crudo" = "#F7C59F",
+  "Variables antitéticas" = "#870058",
+  "Variables de control" = "#F46197"
+)
+
+ggplot(df) +
+  geom_line(aes(x = n, y = raw, colour = "Monte Carlo crudo")) +
+  geom_line(aes(x = n, y = ant, colour = "Variables antitéticas")) +
+  geom_line(aes(x = n, y = cv, colour = "Variables de control")) +
+  geom_hline(yintercept = 0.5) +
+  ylim(0.35, 0.55) +
+  scale_colour_manual(name = NULL, values = colours) +
+  labs(title = NULL,
+       x = "n",
+       y = expression(theta)) +
+  theme(legend.position = "bottom")
+```
 
 # Problema 4
 
 Dados los siguientes números normales con $\mu = 3$ y $\sigma = 1$
 
-$$
-4.59,\ 4.153,\ 2.46,\ 2.732,\ 2.973;
-$$
+```{r}
+obs <- c(4.59, 4.153, 2.46, 2.732, 2.973)
+```
 
 la función de distribución empírica $F_n(x)$ está dada por:
+
+$$
+F_5(x) =
+\begin{cases}
+0, & \text{si}\ \ x_{(1)} > x \\
+1/5, & \text{si}\ \ x_{(1)} \leq x < x_{(2)} \\
+2/5, & \text{si}\ \ x_{(2)} \leq x < x_{(3)} \\
+3/5, & \text{si}\ \ x_{(3)} \leq x < x_{(4)} \\
+4/5, & \text{si}\ \ x_{(4)} \leq x < x_{(5)} \\
+1, & \text{si}\ \ x_{(5)} \leq x
+\end{cases}
+$$
 
 Asimismo,
 
 $$
 \begin{align}
-P(F_n(3) \leq 2/5) &= a
+P(F_5(3) \leq 2/5)
+&= P(F_5(3) = 0) + P(F_5(3) = 1/5) + P(F_5(3) = 2/5) \\
+&= {5 \choose 0} F(3)^0 \left( 1 - F(3) \right)^{5 - 0} \\
+&+ {5 \choose 1} F(3)^1 \left( 1 - F(3) \right)^{5 - 1} \\
+&+ {5 \choose 2} F(3)^2 \left( 1 - F(3) \right)^{5 - 2}
 \end{align}
 $$
+
+donde $F(x)$ es una normal con $\mu = 3$ y $\sigma = 1$.
+
+Así pues,
+
+```{r}
+mean <- 3
+sd <- 1
+
+prob <- 0
+
+for (i in 0:2) {
+  p <- choose(5, i) *
+    (pnorm(3, mean, sd)) ^ (i) *
+    (1 - pnorm(3, mean, sd)) ^ (5 - i)
+  prob <- prob + p
+}
+
+prob
+```
+
+De forma analítica, es fácil ver que $F(3) = \Phi(0) = 0.5$ donde $\Phi(\cdot)$ es una normal estándar. De igual modo, nótese que $F_5(x) \leq 2/5$ si y solo si $x < x_{(3)}$ donde $x_{(3)}$ es la medida de nuestra muestra. Por lo tanto, podemos concluir que $P(F_5(3) \leq 2/5) = 0.5$.
