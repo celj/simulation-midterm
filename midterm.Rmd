@@ -26,7 +26,7 @@ monofont: Fira Code
 ```{r setup, include=FALSE}
 library(rmarkdown)
 library(tidyverse)
-options(digits = 8)
+options(digits = 4)
 
 knitr::opts_chunk$set(
   cache = FALSE,
@@ -92,7 +92,7 @@ $$
 \begin{pmatrix}
 1    & -0.7 \\
 -0.7 & 1
-\end{pmatrix}
+\end{pmatrix}.
 $$
 
 Supongamos que no podemos muestrear $\pi$ directamente y, en su lugar, usamos Metropolis-Hastings con $\displaystyle q(y \mid x) = \mathscr{N}(y \mid x, v I_2)$ donde $v$ es un parámetro de ajuste.
@@ -159,7 +159,7 @@ theta.3  <- tail(theta.cv, 1)
 var.3    <- var(sim.cv)
 ```
 
-Nuestro estimado es: $\hat{\theta}_3 = `r theta.3`$. De tal forma que, con nuestra variable de control, la varianza se reduce en un $`r abs(var.3 / var.1 - 1) * 100`\%$.
+Nuestro estimado es: $\hat{\theta}_3 = `r theta.3`$. De tal forma que, con nuestra variable de control, la varianza se reduce en un $`r abs(var.3 / var.1 - 1) * 100`\%$. Finalmente, nuestro estimador $\hat{\theta}_3$ mejora en un $`r abs(var.3 / var.2 - 1) * 100`\%$ respecto a $\hat{\theta}_2$.
 
 Gráficamente,
 
@@ -170,16 +170,16 @@ df <- data.frame(n = 1:n,
                  cv = theta.cv)
 
 colours <- c(
-  "Monte Carlo crudo" = "#F7C59F",
-  "Variables antitéticas" = "#870058",
-  "Variables de control" = "#F46197"
+  "Monte Carlo crudo" = "#ebcb8b",
+  "Variables antitéticas" = "#5e81ac",
+  "Variables de control" = "#bf616a"
 )
 
 ggplot(df) +
   geom_line(aes(x = n, y = raw, colour = "Monte Carlo crudo")) +
   geom_line(aes(x = n, y = ant, colour = "Variables antitéticas")) +
   geom_line(aes(x = n, y = cv, colour = "Variables de control")) +
-  ylim(0.475, 0.525) +
+  ylim(0.49, 0.51) +
   scale_colour_manual(name = NULL, values = colours) +
   labs(title = NULL,
        x = "n",
