@@ -10,7 +10,7 @@ output:
         self_contained: true
         theme: flatly
         highlight: pygments
-        # code_folding: show
+        code_folding: show
         toc: yes
         toc_depth: 4
         toc_float: yes
@@ -210,10 +210,7 @@ visualize <- function(X) {
 }
 ```
 
-```{r plotMCMC, echo=FALSE}
-X.1 <- simulation(1000, c(0, 0), 0.01)
-X.2 <- simulation(1000, c(0, 0), 100)
-```
+## A
 
 Al momento de otorgar valores pequeños o grandes a $v$ en $q(y \mid x)$, el efecto de dicha $v$ es nulo pues, al crear nuestra
 
@@ -232,7 +229,9 @@ set.seed(181121)
 visualize(simulation(1000, c(0, 0), 100))[[1]]
 ```
 
-Asimismo, podemos visualizar la función de autocorrelación de $\theta_2$:
+## B
+
+Función de autocorrelación de $\theta_2$:
 
 ```{r}
 set.seed(181121)
@@ -240,9 +239,13 @@ Y <- simulation(1000, c(0, 0), 1)
 acf(Y$y, main = expression(theta[2]))
 ```
 
-Finalmente, con $5,000$ extracciones, nótese que nuestra tasa de aceptación es de $`r set.seed(181121); simulation(5000, c(0, 0), 1)[1, 4]`$. Gráficamente:
+## C
 
-```{r}
+Para $5,000$ extracciones, notemos que nuestra tasa de aceptación es de $`r set.seed(181121); simulation(5000, c(0, 0), 1)[1, 4]`$.
+
+Gráficamente:
+
+```{r, echo=FALSE}
 set.seed(181121)
 Y <- simulation(5000, c(0, 0), 1)
 visualize(Y)[[1]]
@@ -259,11 +262,11 @@ Sea $\displaystyle \theta = \int_0^{\pi/3} \sin(t)dt$, usaremos Monte Carlo para
 ## Monte Carlo crudo
 
 ```{r rawMC}
-set.seed(181121)
 n <- 100000
 a <- 0
 b <- pi / 3
 
+set.seed(181121)
 sim.u     <- runif(n, a, b)
 sim.raw   <- sin(sim.u)
 theta.raw <- cumsum(sim.raw) / (1:n)
@@ -289,7 +292,7 @@ Nuestro estimado es: $\hat{\theta}_2 = `r theta.2`$. Asimismo, con variables ant
 
 ## Variables de control
 
-Sabemos $\sin(t) = \cos(t - \pi / 2)$. Definamos $y = t - \pi / 2$ como variable de control.
+Sabemos $\sin(t) = \cos(\pi / 2 - t)$. Definamos $x = \pi / 2 - t$ como nuestra variable de control.
 
 ```{r cvMC}
 k <- 1000
