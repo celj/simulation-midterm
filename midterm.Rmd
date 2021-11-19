@@ -26,6 +26,7 @@ monofont: Fira Code
 ```{r setup, include=FALSE}
 library(rmarkdown)
 library(tidyverse)
+library(mvtnorm)
 options(digits = 4)
 
 knitr::opts_chunk$set(
@@ -95,7 +96,161 @@ $$
 \end{pmatrix}.
 $$
 
-Supongamos que no podemos muestrear $\pi$ directamente y, en su lugar, usamos Metropolis-Hastings con $\displaystyle q(y \mid x) = \mathscr{N}(y \mid x, v I_2)$ donde $v$ es un parámetro de ajuste.
+Supongamos que no podemos muestrear $\pi$ directamente y, en su lugar, usamos Metropolis-Hastings con
+
+$$
+q(y \mid x) = \mathscr{N}(y \mid x, v I_2)
+$$
+
+donde $v$ es un parámetro de ajuste.
+
+```{r MCMC}
+mu.1 <- c(4, 5)
+mu.2 <- c(0.7, 3.5)
+sigma.1 <- matrix(c(1, 0.7, 0.7, 1), 2, 2)
+sigma.2 <- matrix(c(1, -0.7, -0.7, 1), 2, 2)
+I.2 <- diag(2)
+
+mix.norm <- function(x) {
+  0.7 * dmvnorm(x, mean = mu.1, sigma = sigma.1) +
+    0.3 * dmvnorm(x, mean = mu.2, sigma = sigma.2)
+}
+
+q <- function(a, b, c) {
+  dmvnorm(a, mean = b, sigma = (c * I.2))
+}
+
+# Simulación
+simulation <- function(n, init, v) {
+  X <- matrix(c(NA, NA), 2, n)
+  X[, 1] <- init
+  count <- 0
+  
+  for (t in 1:(n - 1)) {
+    x <- X[, t]
+    y <- x + (2 * runif(2) - 1)
+    U <- runif(1)
+    MHR <- (mix.norm(y) * q(x, y, v)) /
+      (mix.norm(x) * q(y, x, v))
+    alpha <- min(1, MHR)
+    if (U <= alpha) {
+      X[, t + 1] <- y
+    }
+    else {
+      X[, t + 1] <- x
+    }
+    ifelse(alpha != 1,
+           count <- count + 1,
+           count <- count)
+  }
+  
+  prob <- count / n
+  X <- data.frame(x = X[1, ], y = X[2, ], n = 1:n, prob = prob, v = v)
+  
+  return(X)
+}
+
+# Visualización
+visualize <- function(X) {
+  colours <-
+    c("Punto inicial" = "#1e40ca",
+      "Media posterior" = "#00a2ed")
+  
+  p.1 <- ggplot(X) +
+    geom_path(aes(x = x, y = y), size = 0.1, alpha = 0.3) +
+    geom_point(aes(x = x, y = y), size = 0.1) +
+    geom_point(aes(x = x[1],
+                   y = y[1],
+                   colour = "Punto inicial"), size = 2) +
+    geom_point(aes(
+      x = mean(x),
+      y = mean(y),
+      colour = "Media posterior"
+    ), size = 2) +
+    labs(
+      title = NULL,
+      x = expression(theta[1]),
+      y = expression(theta[2]),
+      caption = paste("Tasa de aceptación:", X$prob[1],
+                      "\nv =", X$v[1])
+    ) +
+    scale_colour_manual(name = NULL, values = colours) +
+    theme(legend.position = "top")
+  
+  p.2 <- ggplot(X) +
+    geom_line(aes(x = n, y = x)) +
+    labs(title = NULL,
+         x = "Iteración",
+         y = expression(theta[1]))
+  
+  p.3 <- ggplot(X) +
+    geom_line(aes(x = n, y = y)) +
+    labs(title = NULL,
+         x = "Iteración",
+         y = expression(theta[2]))
+  
+  p.4 <- ggplot(X, aes(x = x, y = ..density..)) +
+    geom_histogram(binwidth = 0.5,
+                   fill = "#1e40ca",
+                   alpha = 0.6) +
+    geom_density() +
+    labs(title = NULL,
+         x = expression(theta[1]))
+  
+  p.5 <- ggplot(X, aes(x = y, y = ..density..)) +
+    geom_histogram(binwidth = 0.5,
+                   fill = "#1e40ca",
+                   alpha = 0.6) +
+    geom_density() +
+    labs(title = NULL,
+         x = expression(theta[2]))
+  
+  plots <- list(p.1, p.2, p.3, p.4, p.5)
+  return(plots)
+}
+```
+
+```{r plotMCMC, echo=FALSE}
+X.1 <- simulation(1000, c(0, 0), 0.01)
+X.2 <- simulation(1000, c(0, 0), 100)
+```
+
+Al momento de otorgar valores pequeños o grandes a $v$ en $q(y \mid x)$, el efecto de dicha $v$ es nulo pues, al crear nuestra
+
+$$
+\alpha (x, y) = \min \left\{1, \frac{\pi(y) q(x \mid y)}{\pi(x) q(y \mid x)}\right\},
+$$
+
+tanto el numerador como el denominador relacionados a nuestra razón de Hastings se escalan a la misma varianza.
+
+Nótese lo anteriormente mencionado en las siguientes caminatas aleatorias para $v = 0.01$ y $v = 100$:
+
+```{r}
+set.seed(181121)
+visualize(simulation(1000, c(0, 0), 0.01))[[1]]
+set.seed(181121)
+visualize(simulation(1000, c(0, 0), 100))[[1]]
+```
+
+Asimismo, podemos visualizar la función de autocorrelación de $\theta_2$:
+
+```{r}
+set.seed(181121)
+Y <- simulation(1000, c(0, 0), 1)
+acf(Y$y, main = expression(theta[2]))
+```
+
+Finalmente, con $5,000$ extracciones, nótese que nuestra tasa de aceptación es de $`r set.seed(181121); simulation(5000, c(0, 0), 1)[1, 4]`$. Gráficamente:
+
+```{r}
+set.seed(181121)
+Y <- simulation(5000, c(0, 0), 1)
+visualize(Y)[[1]]
+visualize(Y)[[2]]
+visualize(Y)[[3]]
+visualize(Y)[[4]]
+visualize(Y)[[5]]
+```
 
 # Problema 3
 
@@ -103,9 +258,9 @@ Sea $\displaystyle \theta = \int_0^{\pi/3} \sin(t)dt$, usaremos Monte Carlo para
 
 ## Monte Carlo crudo
 
-```{r}
+```{r rawMC}
 set.seed(181121)
-n <- 10000
+n <- 100000
 a <- 0
 b <- pi / 3
 
@@ -121,7 +276,7 @@ Nuestro estimado es: $\hat{\theta}_1 = `r theta.1`$.
 
 ## Variables antitéticas
 
-```{r}
+```{r antMC}
 sim.v     <- a + (b - sim.u)
 sim.ant   <- (sin(sim.u) + sin(sim.v)) / 2
 theta.ant <- cumsum(sim.ant) / (1:n)
@@ -136,8 +291,8 @@ Nuestro estimado es: $\hat{\theta}_2 = `r theta.2`$. Asimismo, con variables ant
 
 Sabemos $\sin(t) = \cos(t - \pi / 2)$. Definamos $y = t - \pi / 2$ como variable de control.
 
-```{r}
-k <- 100
+```{r cvMC}
+k <- 1000
 
 # Piloto
 set.seed(181121)
@@ -159,27 +314,27 @@ theta.3  <- tail(theta.cv, 1)
 var.3    <- var(sim.cv)
 ```
 
-Nuestro estimado es: $\hat{\theta}_3 = `r theta.3`$. De tal forma que, con nuestra variable de control, la varianza se reduce en un $`r abs(var.3 / var.1 - 1) * 100`\%$. Finalmente, nuestro estimador $\hat{\theta}_3$ mejora en un $`r abs(var.3 / var.2 - 1) * 100`\%$ respecto a $\hat{\theta}_2$.
+Nuestro estimado es: $\hat{\theta}_3 = `r theta.3`$. De tal forma que, con nuestra variable de control, la varianza se reduce en un $`r abs(var.3 / var.1 - 1) * 100`\%$. Finalmente, nuestro estimador $\hat{\theta}_3$ reduce su varianza en un $`r abs(var.3 / var.2 - 1) * 100`\%$ respecto a $\hat{\theta}_2$.
 
 Gráficamente,
 
-```{r, echo=FALSE, warning=FALSE}
+```{r plotMC, echo=FALSE, warning=FALSE}
 df <- data.frame(n = 1:n,
                  raw = theta.raw,
                  ant = theta.ant,
                  cv = theta.cv)
 
 colours <- c(
-  "Monte Carlo crudo" = "#ebcb8b",
-  "Variables antitéticas" = "#5e81ac",
-  "Variables de control" = "#bf616a"
+  "Monte Carlo crudo" = "#1e40ca",
+  "Variables antitéticas" = "#00a2ed",
+  "Variables de control" = "#051c2c"
 )
 
 ggplot(df) +
   geom_line(aes(x = n, y = raw, colour = "Monte Carlo crudo")) +
   geom_line(aes(x = n, y = ant, colour = "Variables antitéticas")) +
   geom_line(aes(x = n, y = cv, colour = "Variables de control")) +
-  ylim(0.49, 0.51) +
+  ylim(0.475, 0.525) +
   scale_colour_manual(name = NULL, values = colours) +
   labs(title = NULL,
        x = "n",
@@ -191,7 +346,7 @@ ggplot(df) +
 
 Dados los siguientes números normales con $\mu = 3$ y $\sigma = 1$
 
-```{r}
+```{r empData}
 obs <- c(4.59, 4.153, 2.46, 2.732, 2.973)
 ```
 
@@ -225,7 +380,7 @@ donde $F(x)$ es una normal con $\mu = 3$ y $\sigma = 1$.
 
 Así pues,
 
-```{r}
+```{r prob4}
 mean <- 3
 sd <- 1
 
