@@ -27,10 +27,11 @@ monofont: Fira Code
 library(rmarkdown)
 library(tidyverse)
 library(mvtnorm)
+library(matrixStats)
 options(digits = 4)
 
 knitr::opts_chunk$set(
-  cache = FALSE,
+  cache = TRUE,
   dpi = 300,
   echo = TRUE,
   fig.align = "center",
@@ -55,13 +56,194 @@ Si $\lambda = 0$, las variables son independientes e idénticamente distribuidas
 
 Hay $2^{16}$ posibles estados, uno por cada valor posible de $X$. Usaremos el método Metropolis-Hastings con los siguientes kérneles de transición:
 
-a) Sea $q_1$ tal que cada transición es igualmente plausible con probabilidad $1/2^{16}$. Es decir, el siguiente estado candidato para $X$ es un vector de $16$ $\text{Bernoulli}(p)$ iid.
+a) Sea $q_1$ tal que cada transición es igualmente plausible con probabilidad $1/2^{16}$. Es decir, el siguiente estado candidato para $X$ es un vector de $16$ $\text{Bernoulli}(p)$ independientes e idénticamente distribuidas.
 
 b) Sea $q_2$ tal que se elige una de las 16 entradas en $X$ con probabilidad $1/16$, y luego se determina el valor de la celda a ser $0$ o $1$ con probabilidad $0.5$ en cada caso. Entonces, a lo más puede cambiar un solo elemento de $X$ en cada transición.
 
 Ambas $q_1$ y $q_2$ son simétricas, irreducibles y tienen diagonales positivas. Es fácil ver que la primera se mueve más rápido que la segunda.
 
 Estamos interesados en la probabilidad de que todos los elementos de la diagonal sean $1$. Al usar $q_1$ y $q_2$, estimaremos dicha probabilidad para los valores $\lambda \in \{0, 1, 3\}$ y $p \in \{0.5, 0.8\}$.
+
+En primer lugar, modelamos el generador de nuestra matriz de inicio y las funciones necesarias para nuestras simulaciones --- $N(X)$, $D(X)$, $\pi(X)$, $q_1$ y $q_2$.
+
+```{r funMH}
+init <- function(m, n) {
+  X <- matrix(rbinom(m * n, 1, runif(1)), m, n)
+  return(X)
+}
+
+N <- function(X) {
+  count(c(X), value = 1)
+}
+
+D <- function(X) {
+  n <- 0
+  
+  error <- function(x) {
+    return(1)
+  }
+  
+  for (i in 1:dim(X)[1]) {
+    for (j in 1:dim(X)[2]) {
+      up     <- tryCatch(X[i - 1, j], error = error)
+      down   <- tryCatch(X[i + 1, j], error = error)
+      left   <- tryCatch(X[i, j - 1], error = error)
+      right  <- tryCatch(X[i, j + 1], error = error)
+      centre <- X[i, j]
+      
+      ifelse((centre == 1) & (up == 0), n <- n + 1, n)
+      ifelse((centre == 1) & (down == 0), n <- n + 1, n)
+      ifelse((centre == 1) & (left == 0), n <- n + 1, n)
+      ifelse((centre == 1) & (right == 0), n <- n + 1, n)
+    }
+  }
+  
+  return(n)
+}
+
+dist <- function(X, p, lambda) {
+  m <- dim(X)[1]
+  n <- dim(X)[2]
+  
+  (p ^ N(X)) * ((1 - p) ^ ((m * n) - N(X))) * exp(-lambda * D(X))
+}
+
+q.1 <- function(X) {
+  m <- dim(X)[1]
+  n <- dim(X)[2]
+  Y <- matrix(rbinom(m * n, 1, p), m, n)
+  return(Y)
+}
+
+q.2 <- function(X) {
+  m <- dim(X)[1]
+  n <- dim(X)[2]
+  a <- sample(m, 1)
+  b <- sample(n, 1)
+  x <- rbinom(1, 1, 0.5)
+  X[a, b] <- x
+  return(X)
+}
+```
+
+Nótese que, dado que $q_1$ y $q_2$ son simétricas, podemos definir nuestra razón de Hastings como sigue:
+
+$$
+\alpha (x, y) = \min \left\{1, \frac{\pi(y)}{\pi(x)}\right\}.
+$$
+
+```{r simMH}
+simulation <- function(iterations, X, p, lambda, q) {
+  m <- dim(X)[1]
+  n <- dim(X)[2]
+  chain <- matrix(NA, length(c(X)), iterations)
+  chain[, 1] <- c(X)
+  
+  for (t in 2:(iterations)) {
+    x <- chain[, t - 1]
+    sample.x <- matrix(x, m, n)
+    y <- c(do.call(q, list(sample.x)))
+    sample.y <- matrix(y, m, n)
+    
+    U <- runif(1)
+    MHR <- dist(sample.y, p, lambda) / dist(sample.x, p, lambda)
+    alpha <- min(1, MHR)
+    
+    if (U <= alpha) {
+      chain[, t] <- y
+    }
+    else {
+      chain[, t] <- x
+    }
+    
+    diag.count <- count(diag(matrix(chain[, t], m, n)), value = 1)
+    identity <- count(diag(diag(nrow = m, ncol = n)), value = 1)
+    
+    if (diag.count == identity) {
+      break
+    }
+  }
+  
+  keep.cols <- which(apply(!is.na(chain), 2, all))
+  chain <- chain[, keep.cols]
+  no.iter <- ncol(chain) # periodo de calentamiento
+  final.matrix <- matrix(chain[, no.iter], m, n)
+  return(list(chain, final.matrix, no.iter))
+}
+```
+
+Únicamente usaremos la semilla para generar nuestra matriz inicial. Para estimar las probabilidades de tener $1$'s en la diagonal, tomaremos la media sobre $k$ simulaciones del periodo en que se alcanzan dichos $1$'s en la diagonal.
+
+```{r compMH}
+m <- n <- 4
+k <- 100
+p <- c(0.5, 0.8)
+lambda <- c(0, 1, 3)
+
+set.seed(181121)
+X <- init(m, n)
+
+# Usando q1
+for (i in p) {
+  for (j in lambda) {
+    prob <- mean(replicate(k, 1 - simulation(k, X, i, j, q.1)[[3]] / k))
+    cat("(p =", i, ", lambda =", j, "\b)", "probability:", prob, "\n")
+  }
+}
+
+# Usando q2
+for (i in p) {
+  for (j in lambda) {
+    prob <- mean(replicate(k, 1 - simulation(k, X, i, j, q.2)[[3]] / k))
+    cat("(p =", i, ", lambda =", j, "\b)", "probability:", prob, "\n")
+  }
+}
+```
+
+Nótese que $q_1$ es muchísimo más eficiente que $q_2$, pues alcanza el periodo de calentamiento mucho antes y, por lo tanto, las probabilidades de tener $1$'s en la diagonal respecto al número de simulaciones es mucho mayor. Asimismo, es fácil ver que una $\lambda$ más grande alenta los procesos iterativos dada una mayor dependencia entre las variables.
+
+Para comparar las cadenas resultantes con $q_1$ y $q_2$, fijemos $p = 0.5$ y $\lambda = 0$ para eficientar los cálculos internos.
+
+```{r chainsMH}
+set.seed(181121)
+chain.1 <- simulation(1000, X, 0.5, 0, q.1)
+set.seed(181121)
+chain.2 <- simulation(1000, X, 0.5, 0, q.2)
+```
+
+De esta forma, podemos observar nuestras funciones de autocorrelación para nuestros elementos de interés.
+
+```{r plotsMH, echo=FALSE}
+par(mfrow = c(2, 2))
+acf(chain.1[[1]][1, ], main = "Cadena 1 | (1, 1)")
+acf(chain.1[[1]][6, ], main = "Cadena 1 | (2, 2)")
+acf(chain.1[[1]][11, ], main = "Cadena 1 | (3, 3)")
+acf(chain.1[[1]][16, ], main = "Cadena 1 | (4, 4)")
+acf(chain.2[[1]][1, ], main = "Cadena 2 | (1, 1)")
+acf(chain.2[[1]][6, ], main = "Cadena 2 | (2, 2)")
+acf(chain.2[[1]][11, ], main = "Cadena 2 | (3, 3)")
+acf(chain.2[[1]][16, ], main = "Cadena 2 | (4, 4)")
+```
+
+Finalmente, dada nuestra matriz inicial
+
+```{r, echo=FALSE}
+X
+```
+
+podemos ver que, con $q_1$ y $q_2$, nuestras matrices finales son
+
+```{r, echo=FALSE}
+chain.1[[2]]
+```
+
+y
+
+```{r, echo=FALSE}
+chain.2[[2]]
+```
+
+Mismas que se alcanzan en las iteraciones `r chain.1[[3]]` y `r chain.2[[3]]` (periodos de calentamiento), respectivamente. Además, es fácil observar que, la autocorrelación con $q_1$ es menor y, por lo tanto, más estable y capaz de alcanzar la estacionariedad más rápido.
 
 # Problema 2
 
@@ -222,7 +404,7 @@ tanto el numerador como el denominador relacionados a nuestra razón de Hastings
 
 Nótese lo anteriormente mencionado en las siguientes caminatas aleatorias para $v = 0.01$ y $v = 100$:
 
-```{r}
+```{r compMCMC}
 set.seed(181121)
 visualize(simulation(1000, c(0, 0), 0.01))[[1]]
 set.seed(181121)
@@ -233,7 +415,7 @@ visualize(simulation(1000, c(0, 0), 100))[[1]]
 
 Función de autocorrelación de $\theta_2$:
 
-```{r}
+```{r autocorrMCMC}
 set.seed(181121)
 Y <- simulation(1000, c(0, 0), 1)
 acf(Y$y, main = expression(theta[2]))
@@ -245,7 +427,7 @@ Para $5,000$ extracciones, notemos que nuestra tasa de aceptación es de $`r set
 
 Gráficamente:
 
-```{r, echo=FALSE}
+```{r visMCMC, echo=FALSE}
 set.seed(181121)
 Y <- simulation(5000, c(0, 0), 1)
 visualize(Y)[[1]]
@@ -399,4 +581,4 @@ for (i in 0:2) {
 prob
 ```
 
-De forma analítica, es fácil ver que $F(3) = \Phi(0) = 0.5$ donde $\Phi(\cdot)$ es una normal estándar. De igual modo, nótese que $F_5(x) \leq 2/5$ si y solo si $x < x_{(3)}$ donde $x_{(3)}$ es la medida de nuestra muestra. Por lo tanto, podemos concluir que $P(F_5(3) \leq 2/5) = 0.5$.
+De forma analítica, es fácil ver que $F(3) = \Phi(0) = 0.5$ donde $\Phi(\cdot)$ es una normal estándar. De igual modo, nótese que $F_5(x) \leq 2/5$ si y solo si $x < x_{(3)}$ donde $x_{(3)}$ es la mediana de nuestra muestra. Por lo tanto, podemos concluir que $P(F_5(3) \leq 2/5) = 0.5$.
