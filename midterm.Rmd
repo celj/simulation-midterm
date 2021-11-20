@@ -243,7 +243,7 @@ y
 chain.2[[2]]
 ```
 
-Mismas que se alcanzan en las iteraciones `r chain.1[[3]]` y `r chain.2[[3]]` (periodos de calentamiento), respectivamente. Además, es fácil observar que, la autocorrelación con $q_1$ es menor y, por lo tanto, más estable y capaz de alcanzar la estacionariedad más rápido.
+Mismas que se alcanzan en las iteraciones $`r chain.1[[3]]`$ y $`r chain.2[[3]]`$ (periodos de calentamiento), respectivamente. Además, es fácil observar que, la autocorrelación con $q_1$ es menor y, por lo tanto, más estable y capaz de alcanzar la estacionariedad más rápido.
 
 # Problema 2
 
