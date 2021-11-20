@@ -44,7 +44,7 @@ theme_set(theme_minimal())
 
 # Problema 1
 
-Dada una matriz $4 \times 4$ de variables aleatorias Bernoulli denotada por $\displaystyle \left[X_{ij}\right]$, sean $N(X)$ el número total de éxitos en $X$ y $D(X)$ el total de vecinos (horizontales o verticales) de dichos éxitos que difieren. Nótese que, si se escriben los elementos de $X$ en un vector $V$, existe una matriz $\displaystyle M_{24 \times 16}$ tal que $D(X)$ es la suma de valores absolutos de $MV$. El $24$ surge porque hay $24$ pares de vecinos a revisar.
+Dada una matriz $4 \times 4$ de variables aleatorias Bernoulli denotada por $\displaystyle \left[X_{ij}\right]$, sean $N(X)$ el número total de éxitos en $X$ y $D(X)$ el total de vecinos (horizontales o verticales) de dichos éxitos que difieren.
 
 Asimismo, supongamos que la distribución de $X$, $\pi(X)$, es proporcional a
 
@@ -56,9 +56,9 @@ Si $\lambda = 0$, las variables son independientes e idénticamente distribuidas
 
 Hay $2^{16}$ posibles estados, uno por cada valor posible de $X$. Usaremos el método Metropolis-Hastings con los siguientes kérneles de transición:
 
-a) Sea $q_1$ tal que cada transición es igualmente plausible con probabilidad $1/2^{16}$. Es decir, el siguiente estado candidato para $X$ es un vector de $16$ $\text{Bernoulli}(p)$ independientes e idénticamente distribuidas.
+a) $q_1$ tal que cada transición es igualmente plausible con probabilidad $1/2^{16}$. Es decir, el siguiente estado candidato para $X$ es un vector de $16$ $\text{Bernoulli}(p)$ independientes e idénticamente distribuidas.
 
-b) Sea $q_2$ tal que se elige una de las 16 entradas en $X$ con probabilidad $1/16$, y luego se determina el valor de la celda a ser $0$ o $1$ con probabilidad $0.5$ en cada caso. Entonces, a lo más puede cambiar un solo elemento de $X$ en cada transición.
+b) $q_2$ tal que se elige una de las 16 entradas en $X$ con probabilidad $1/16$, y luego se determina el valor de la celda a ser $0$ o $1$ con probabilidad $0.5$ en cada caso. Entonces, a lo más puede cambiar un solo elemento de $X$ en cada transición.
 
 Ambas $q_1$ y $q_2$ son simétricas, irreducibles y tienen diagonales positivas. Es fácil ver que la primera se mueve más rápido que la segunda.
 
@@ -535,7 +535,7 @@ Dados los siguientes números normales con $\mu = 3$ y $\sigma = 1$
 obs <- c(4.59, 4.153, 2.46, 2.732, 2.973)
 ```
 
-la función de distribución empírica $F_n(x)$ está dada por:
+la función de distribución empírica $F_5(x)$ está dada por:
 
 $$
 F_5(x) =
