@@ -58,7 +58,7 @@ Hay $2^{16}$ posibles estados, uno por cada valor posible de $X$. Usaremos el m�
 
 a) $q_1$ tal que cada transición es igualmente plausible con probabilidad $1/2^{16}$. Es decir, el siguiente estado candidato para $X$ es un vector de $16$ $\text{Bernoulli}(p)$ independientes e idénticamente distribuidas.
 
-b) $q_2$ tal que se elige una de las 16 entradas en $X$ con probabilidad $1/16$, y luego se determina el valor de la celda a ser $0$ o $1$ con probabilidad $0.5$ en cada caso. Entonces, a lo más puede cambiar un solo elemento de $X$ en cada transición.
+b) $q_2$ tal que se elige una de las $16$ entradas en $X$ con probabilidad $1/16$, y luego se determina el valor de la celda a ser $0$ o $1$ con probabilidad $0.5$ en cada caso. Entonces, a lo más puede cambiar un solo elemento de $X$ en cada transición.
 
 Ambas $q_1$ y $q_2$ son simétricas, irreducibles y tienen diagonales positivas. Es fácil ver que la primera se mueve más rápido que la segunda.
 
@@ -187,7 +187,7 @@ X <- init(m, n)
 for (i in p) {
   for (j in lambda) {
     prob <- mean(replicate(k, 1 - simulation(k, X, i, j, q.1)[[3]] / k))
-    cat("(p =", i, ", lambda =", j, "\b)", "probability:", prob, "\n")
+    cat("( p =", i, ", lambda =", j, ")", "probability:", prob, "\n")
   }
 }
 
@@ -195,7 +195,7 @@ for (i in p) {
 for (i in p) {
   for (j in lambda) {
     prob <- mean(replicate(k, 1 - simulation(k, X, i, j, q.2)[[3]] / k))
-    cat("(p =", i, ", lambda =", j, "\b)", "probability:", prob, "\n")
+    cat("( p =", i, ", lambda =", j, ")", "probability:", prob, "\n")
   }
 }
 ```
@@ -310,7 +310,7 @@ simulation <- function(n, init, v) {
   
   for (t in 1:(n - 1)) {
     x <- X[, t]
-    y <- x + (2 * runif(2) - 1)
+    y <- rmvnorm(1, mean = x, sigma = (v * I.2))
     U <- runif(1)
     MHR <- (mix.norm(y) * q(x, y, v)) /
       (mix.norm(x) * q(y, x, v))
@@ -318,14 +318,12 @@ simulation <- function(n, init, v) {
     
     if (U <= alpha) {
       X[, t + 1] <- y
+      count <- count + 1
     }
     else {
       X[, t + 1] <- x
+      count <- count
     }
-    
-    ifelse(alpha != 1,
-           count <- count + 1,
-           count <- count)
   }
   
   prob <- count / n
@@ -398,13 +396,7 @@ visualize <- function(X) {
 
 ## A
 
-Al momento de otorgar valores pequeños o grandes a $v$ en $q(y \mid x)$, el efecto de dicha $v$ es nulo pues, al crear nuestra
-
-$$
-\alpha (x, y) = \min \left\{1, \frac{\pi(y) q(x \mid y)}{\pi(x) q(y \mid x)}\right\},
-$$
-
-tanto el numerador como el denominador relacionados a nuestra razón de Hastings se escalan a la misma varianza.
+Al momento de otorgar valores pequeños o grandes a $v$ en $q(y \mid x)$, el efecto de dicha $v$ está directamente relacionado con nuestra razón de Hastings, pues esta se escala a varianza $v$, reduciendo o aumentando la tasa de aceptación. Una $v > 1$ implica, dada la definición de $\alpha(x, y)$, una tasa de aceptación menor. Asimismo, una $v < 1$ implica, naturalmente, una tasa de aceptación mayor.
 
 Nótese lo anteriormente mencionado en las siguientes caminatas aleatorias para $v = 0.01$ y $v = 100$:
 
