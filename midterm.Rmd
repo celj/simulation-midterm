@@ -24,10 +24,12 @@ monofont: Fira Code
 ---
 
 ```{r setup, include=FALSE}
-library(rmarkdown)
-library(tidyverse)
-library(mvtnorm)
-library(matrixStats)
+if (!require("pacman")) install.packages("pacman")
+
+pacman::p_load(mvtnorm,
+               rmarkdown,
+               tidyverse)
+
 options(digits = 4)
 
 knitr::opts_chunk$set(
@@ -73,7 +75,7 @@ init <- function(m, n) {
 }
 
 N <- function(X) {
-  count(c(X), value = 1)
+  sum(X == 1)
 }
 
 D <- function(X) {
@@ -156,8 +158,8 @@ simulation <- function(iterations, X, p, lambda, q) {
       chain[, t] <- x
     }
     
-    diag.count <- count(diag(matrix(chain[, t], m, n)), value = 1)
-    identity <- count(diag(diag(nrow = m, ncol = n)), value = 1)
+    diag.count <- sum(diag(matrix(chain[, t], m, n)) == 1)
+    identity <- sum(diag(diag(nrow = m, ncol = n)) == 1)
     
     if (diag.count == identity) {
       break
